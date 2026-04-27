@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "932925255082",
+    "project_id": "midterms-3fbc9",
+    "storage_bucket": "midterms-3fbc9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:932925255082:android:ce18b0f3fdc71d9bd68fd3",
+        "android_client_info": {
+          "package_name": "com.example.duitku"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfYC0QmfNzGaiLkIdqbCgFM4YbnbITWmQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
