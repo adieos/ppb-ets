@@ -13,7 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  String _errorCode = "";
+  String _errorMessage = "";
 
   void navigateRegister() {
     if (!context.mounted) return;
@@ -28,70 +28,116 @@ class _LoginScreenState extends State<LoginScreen> {
   void signIn() async {
     setState(() {
       _isLoading = true;
-      _errorCode = "";
+      _errorMessage = "";
     });
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
       navigateHome();
     } on FirebaseAuthException catch (e) {
       setState(() {
-        _errorCode = e.code;
+        _errorMessage = e.message ?? "An error occurred";
       });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-
-    setState(() {
-      _isLoading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login'), centerTitle: true),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SafeArea(
         child: Center(
-          child: ListView(
-            children: [
-              const SizedBox(height: 48),
-              Icon(Icons.lock_outline, size: 100, color: Colors.blue[200]),
-              const SizedBox(height: 48),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(label: Text('Email')),
-              ),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(label: Text('Password')),
-              ),
-              const SizedBox(height: 24),
-              _errorCode != ""
-                  ? Column(
-                      children: [Text(_errorCode), const SizedBox(height: 24)],
-                    )
-                  : const SizedBox(height: 0),
-              OutlinedButton(
-                onPressed: signIn,
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Login'),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Don\'t have an account?'),
-                  TextButton(
-                    onPressed: navigateRegister,
-                    child: const Text('Register'),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Icon Header
+                const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 80,
+                  color: Colors.greenAccent,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "Welcome Back to Duitku!",
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 40),
+
+                // Email Field
+                TextField(
+                  controller: _emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.email_outlined),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Password Field
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                  ),
+                ),
+
+                // Error Message
+                if (_errorMessage.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage,
+                    style: const TextStyle(color: Colors.red),
                   ),
                 ],
-              ),
-            ],
+
+                const SizedBox(height: 24),
+
+                // Login Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: _isLoading ? null : signIn,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Login', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Register Link
+                TextButton(
+                  onPressed: navigateRegister,
+                  child: const Text('Don\'t have an account? Register'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

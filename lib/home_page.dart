@@ -11,48 +11,27 @@ import 'package:image_picker/image_picker.dart';
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  void logout(context) async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.pushReplacementNamed(context, 'login');
-  }
-
-  // get current user
-  String get userUid => FirebaseAuth.instance.currentUser!.uid;
-
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  // idk what this is twin
   final titleTextController = TextEditingController();
   final contentTextController = TextEditingController();
-  final labelTextController = TextEditingController();
-  final typeTextController = TextEditingController();
   final amountTextController = TextEditingController();
 
-  // image picking shenanigans
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
 
-  Future<void> pickImage(ImageSource source) async {
-    final XFile? pickedFile = await _picker.pickImage(source: source);
-
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
-    }
-  }
-
-  // get current user
-  String get userUid => FirebaseAuth.instance.currentUser!.uid;
-  String? get userEmail => FirebaseAuth.instance.currentUser!.email;
-
-  // init services
   final FirestoreService firestoreService = FirestoreService();
   final DuitService duitService = DuitService();
   final IOService ioservice = IOService();
+
+  void logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, 'login');
+  }
 
   void openDuitBox({
     String? docId,
@@ -62,151 +41,148 @@ class _HomePageState extends State<HomePage> {
     String? existingType,
     String? existingURL,
   }) async {
-    // new track
+    // Reset image state for new dialogs
+    _selectedImage = null;
+
     if (docId != null) {
       titleTextController.text = existingTitle ?? '';
       contentTextController.text = existingNote ?? '';
       amountTextController.text = "${existingAmount}";
+    } else {
+      titleTextController.clear();
+      contentTextController.clear();
+      amountTextController.clear();
     }
-    String selectedType =
-        existingType ?? 'INCOME'; // The variable to track the choice
 
-    // pop up the thingy
+    String selectedType = existingType ?? 'INCOME';
+
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: Text(
-                docId == null ? "Create new Transaction" : "Edit Transaction",
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    decoration: InputDecoration(labelText: "Title"),
-                    controller: titleTextController,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    decoration: InputDecoration(labelText: "Content"),
-                    controller: contentTextController,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    decoration: InputDecoration(labelText: "Amount"),
-                    controller: amountTextController,
-                  ),
-                  const SizedBox(height: 10),
-
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedType,
-                    decoration: InputDecoration(labelText: "Type"),
-                    items: ['INCOME', 'EXPENSE'].map((String type) {
-                      return DropdownMenuItem<String>(
-                        value: type,
-                        child: Text(type),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setState(() {
-                        selectedType =
-                            newValue!; // Update the UI when the user picks a new type
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 10),
-
-                  // button here
-                  MaterialButton(
-                    onPressed: () async {
-                      final XFile? pickedFile = await _picker.pickImage(
-                        source: ImageSource.gallery,
-                      );
-
-                      if (pickedFile != null) {
-                        setStateDialog(() {
-                          _selectedImage = File(pickedFile.path);
-                        });
-                      }
-                    },
-                    child: Text("Pick Image"),
-                  ),
-
-                  const SizedBox(height: 10),
-                  if (_selectedImage != null)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Image.file(_selectedImage!, height: 100),
+              title: Text(
+                docId == null ? "New Transaction" : "Edit Transaction",
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleTextController,
+                      decoration: const InputDecoration(
+                        labelText: "Title",
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                ],
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: contentTextController,
+                      decoration: const InputDecoration(
+                        labelText: "Content",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: amountTextController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Amount",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      decoration: const InputDecoration(
+                        labelText: "Type",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ['INCOME', 'EXPENSE']
+                          .map(
+                            (t) => DropdownMenuItem(value: t, child: Text(t)),
+                          )
+                          .toList(),
+                      onChanged: (v) => setStateDialog(() => selectedType = v!),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await _picker.pickImage(
+                          source: ImageSource.gallery,
+                        );
+                        if (picked != null)
+                          setStateDialog(
+                            () => _selectedImage = File(picked.path),
+                          );
+                      },
+                      icon: const Icon(Icons.image),
+                      label: const Text("Pick Image"),
+                    ),
+                    if (_selectedImage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Image.file(_selectedImage!, height: 100),
+                      ),
+                  ],
+                ),
               ),
               actions: [
-                MaterialButton(
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel"),
+                ),
+                ElevatedButton(
                   onPressed: () async {
-                    if (selectedType != "INCOME" && selectedType != "EXPENSE") {
-                      String hhhh = selectedType == '' ? 'NULL' : selectedType;
-                      showTimedPopup(
-                        context,
-                        "Invalid Type of (${hhhh})",
-                        "Type must either be INCOME or EXPENSE!",
-                      );
-                      return;
-                    }
                     int amt = int.tryParse(amountTextController.text) ?? 0;
-                    if (amt <= 0) {
-                      showTimedPopup(
-                        context,
-                        "Invalid Amount",
-                        "PLEASE put a valid AMOUNT!",
-                      );
-                      return;
-                    }
-                    if (docId == null) {
-                      String? imageUrl;
+                    if (amt <= 0) return;
 
-                      if (_selectedImage != null) {
-                        imageUrl = await ioservice.uploadImage(_selectedImage!);
-                      }
+                    // Upload new image if exists, otherwise keep existing
+                    String finalImageUrl = existingURL ?? '';
+                    if (_selectedImage != null) {
+                      finalImageUrl =
+                          await ioservice.uploadImage(_selectedImage!) ?? '';
+                    }
+
+                    if (docId == null) {
+                      // ADD LOGIC
                       duitService.addDuit(
                         titleTextController.text,
                         contentTextController.text,
                         amt,
                         selectedType,
-                        imageUrl ?? '',
+                        finalImageUrl,
                       );
                       await NotificationService.createNotification(
                         id: 4,
-                        title: 'Successfully created record',
-                        body: 'A record for your transaction has been created.',
+                        title: 'Created',
+                        body: 'Record added successfully',
                         summary: 'Duitku',
                       );
                     } else {
+                      // UPDATE LOGIC
                       duitService.updateDuit(
                         docId,
                         titleTextController.text,
                         contentTextController.text,
                         amt,
                         selectedType,
-                        existingURL ?? '',
+                        finalImageUrl,
                       );
                       await NotificationService.createNotification(
                         id: 2,
-                        title: 'Successfully edited record',
-                        body:
-                            'The record in your transaction has been modified.',
+                        title: 'Updated',
+                        body: 'Record modified successfully',
                         summary: 'Duitku',
                       );
                     }
-                    titleTextController.clear();
-                    contentTextController.clear();
-                    amountTextController.clear();
-                    typeTextController.clear();
-                    setState(() {
-                      _selectedImage = null;
-                    });
 
+                    if (!mounted) return;
                     Navigator.pop(context);
                   },
                   child: Text(docId == null ? "Create" : "Update"),
@@ -222,137 +198,161 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Transactions for ${userEmail}")),
+      appBar: AppBar(
+        title: const Text("Duitku"),
+        actions: [
+          IconButton(onPressed: logout, icon: const Icon(Icons.logout)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: openDuitBox, // new note, hence no docId nor other params
+        onPressed: openDuitBox,
         child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
+          // Header / Stats Card
           StreamBuilder<Balance>(
             stream: duitService.getBalance(),
             builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                Balance myBalance = snapshot.data!;
-                return Card(
-                  elevation: 4,
-                  margin: const EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+              if (!snapshot.hasData)
+                return const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        const Text(
-                          "Total Balance",
-                          style: TextStyle(color: Colors.grey, fontSize: 16),
-                        ),
-                        Text(
-                          "${myBalance.balance}",
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Divider(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStatColumn(
-                              "Income",
-                              "${myBalance.income}",
-                              Colors.green,
-                            ),
-                            _buildStatColumn(
-                              "Expense",
-                              "${myBalance.expense}",
-                              Colors.red,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
                   ),
                 );
-                // return Text("youre rich! gg");
-                /*
-                return Row(
-                  children: [
-                    Text("Income: ${myBalance.income}"),
-                    Text("Expense: ${myBalance.expense}"),
-                    Text("Balance: ${myBalance.balance}"),
-                  ],
-                );
-                */
-              } else {
-                return Text("youre broke lol (jk its still loading probably)");
-              }
+              Balance b = snapshot.data!;
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "Total Balance",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      Text(
+                        "${b.balance}",
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildStatColumn(
+                            "Income",
+                            "${b.income}",
+                            Colors.green,
+                          ),
+                          _buildStatColumn(
+                            "Expense",
+                            "${b.expense}",
+                            Colors.red,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
             },
           ),
+          // List of Transactions
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: duitService.getDuits(),
               builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  List duitList = snapshot.data!.docs;
-                  return ListView.builder(
-                    itemCount: duitList.length,
-                    itemBuilder: (context, index) {
-                      DocumentSnapshot document = duitList[index];
-                      String docId = document.id;
+                if (!snapshot.hasData)
+                  return const Center(child: Text("No records yet"));
+                var docs = snapshot.data!.docs;
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    var data = docs[index].data() as Map<String, dynamic>;
+                    bool isIncome = data['type'] == 'INCOME';
+                    String imgUrl = data['imgUrl'] ?? '';
 
-                      Map<String, dynamic> data =
-                          document.data() as Map<String, dynamic>;
-                      String noteTitle = data['title'];
-                      String noteContent = data['content'];
-                      int noteAmount = data['amount'];
-                      String noteType = data['type'];
-                      String imgUrl = data['imgUrl'] ?? '';
-
-                      // RENDER IMAGE HERE
-                      return ListTile(
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: ListTile(
+                        // Renders the image if URL exists, else fallback icon
                         leading: imgUrl.isNotEmpty
-                            ? SizedBox(
-                                width: 50,
-                                height: 50,
-                                child: Image.network(imgUrl, fit: BoxFit.cover),
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  imgUrl,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                ),
                               )
-                            : const Icon(Icons.money),
-                        title: Text(noteTitle),
-                        subtitle: Text(noteContent),
+                            : CircleAvatar(
+                                backgroundColor: Colors.grey[200],
+                                child: Icon(
+                                  isIncome
+                                      ? Icons.arrow_upward
+                                      : Icons.arrow_downward,
+                                ),
+                              ),
+
+                        title: Text(
+                          data['title'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(data['content']),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text("${noteAmount}"),
-                            IconButton(
-                              icon: Icon(Icons.edit),
-                              onPressed: () {
-                                openDuitBox(
-                                  // edit note
-                                  docId: docId,
-                                  existingNote: noteContent,
-                                  existingTitle: noteTitle,
-                                  existingAmount: noteAmount,
-                                  existingType: noteType,
-                                  existingURL: imgUrl,
-                                );
-                              },
+                            // Amount text
+                            Text(
+                              "${isIncome ? '+' : '-'}${data['amount']}",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isIncome ? Colors.green : Colors.red,
+                              ),
                             ),
+
+                            // Edit Button
                             IconButton(
-                              icon: Icon(Icons.delete),
+                              icon: const Icon(Icons.edit, size: 18),
+                              onPressed: () => openDuitBox(
+                                docId: docs[index].id,
+                                existingTitle: data['title'],
+                                existingNote: data['content'],
+                                existingAmount: data['amount'],
+                                existingType: data['type'],
+                                existingURL: imgUrl,
+                              ),
+                            ),
+
+                            // Delete Button (The one you were missing!)
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete,
+                                size: 18,
+                                color: Colors.red,
+                              ),
                               onPressed: () {
-                                duitService.deleteDuit(docId);
+                                duitService.deleteDuit(docs[index].id);
                               },
                             ),
                           ],
                         ),
-                      );
-                    },
-                  );
-                } else {
-                  return const Text("No data");
-                }
+                      ),
+                    );
+                  },
+                );
               },
             ),
           ),
@@ -362,7 +362,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// HELPERS
 Widget _buildStatColumn(String label, String value, Color color) {
   return Column(
     children: [
@@ -376,22 +375,5 @@ Widget _buildStatColumn(String label, String value, Color color) {
         ),
       ),
     ],
-  );
-}
-
-// for invalid type
-void showTimedPopup(BuildContext context, String title, String msg) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      // Start a timer to close the dialog after 2 seconds
-      Future.delayed(Duration(seconds: 2), () {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        }
-      });
-
-      return AlertDialog(title: Text(title), content: Text(msg));
-    },
   );
 }
