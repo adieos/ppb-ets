@@ -18,7 +18,13 @@ class DuitService {
   String get userUid => FirebaseAuth.instance.currentUser!.uid;
 
   //create new duit tracker
-  Future<void> addDuit(String title, String content, int amount, String type) {
+  Future<void> addDuit(
+    String title,
+    String content,
+    int amount,
+    String type,
+    String imgUrl,
+  ) {
     return duits.add({
       'uid': userUid,
       'title': title,
@@ -26,6 +32,7 @@ class DuitService {
       'amount': amount,
       'createdAt': Timestamp.now(),
       'type': type,
+      'imgUrl': imgUrl,
     });
   }
 
@@ -44,6 +51,7 @@ class DuitService {
     String content,
     int amount,
     String type,
+    String imgUrl,
   ) {
     return duits.doc(id).update({
       'uid': userUid,
@@ -52,6 +60,7 @@ class DuitService {
       'amount': amount,
       'updatedAt': Timestamp.now(),
       'type': type,
+      'imgUrl': imgUrl,
     });
   }
 

@@ -66,5 +66,4 @@ class DefaultFirebaseOptions {
     projectId: 'midterms-3fbc9',
     storageBucket: 'midterms-3fbc9.firebasestorage.app',
   );
-
 }

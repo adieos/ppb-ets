@@ -1,9 +1,12 @@
 import 'package:duitku/firestore.dart';
 import 'package:duitku/services/duit_service.dart';
+import 'package:duitku/services/io_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:duitku/services/notification_service.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -28,6 +31,20 @@ class _HomePageState extends State<HomePage> {
   final typeTextController = TextEditingController();
   final amountTextController = TextEditingController();
 
+  // image picking shenanigans
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> pickImage(ImageSource source) async {
+    final XFile? pickedFile = await _picker.pickImage(source: source);
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+    }
+  }
+
   // get current user
   String get userUid => FirebaseAuth.instance.currentUser!.uid;
   String? get userEmail => FirebaseAuth.instance.currentUser!.email;
@@ -35,86 +52,7 @@ class _HomePageState extends State<HomePage> {
   // init services
   final FirestoreService firestoreService = FirestoreService();
   final DuitService duitService = DuitService();
-
-  void openNoteBox({
-    String? docId,
-    String? existingTitle,
-    String? existingNote,
-    String? existingLabel,
-  }) async {
-    // new track
-    if (docId != null) {
-      titleTextController.text = existingTitle ?? '';
-      contentTextController.text = existingNote ?? '';
-      labelTextController.text = existingLabel ?? '';
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(docId == null ? "Create new Note" : "Edit Note"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: "Title"),
-                controller: titleTextController,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(labelText: "Content"),
-                controller: contentTextController,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(labelText: "Label"),
-                controller: labelTextController,
-              ),
-            ],
-          ),
-          actions: [
-            MaterialButton(
-              onPressed: () async {
-                if (docId == null) {
-                  firestoreService.addNote(
-                    titleTextController.text,
-                    contentTextController.text,
-                    labelTextController.text,
-                  );
-                  await NotificationService.createNotification(
-                    id: 1,
-                    title: 'Successfully created record',
-                    body: 'A record for your transaction has been created.',
-                    summary: 'Duitku',
-                  );
-                } else {
-                  firestoreService.updateNote(
-                    docId,
-                    titleTextController.text,
-                    contentTextController.text,
-                    labelTextController.text,
-                  );
-                  await NotificationService.createNotification(
-                    id: 2,
-                    title: 'Successfully edited record',
-                    body: 'The record in your transaction has been modified.',
-                    summary: 'Duitku',
-                  );
-                }
-                titleTextController.clear();
-                contentTextController.clear();
-                labelTextController.clear();
-
-                Navigator.pop(context);
-              },
-              child: Text(docId == null ? "Create" : "Update"),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  final IOService ioservice = IOService();
 
   void openDuitBox({
     String? docId,
@@ -122,120 +60,160 @@ class _HomePageState extends State<HomePage> {
     String? existingNote,
     int? existingAmount,
     String? existingType,
+    String? existingURL,
   }) async {
     // new track
     if (docId != null) {
       titleTextController.text = existingTitle ?? '';
       contentTextController.text = existingNote ?? '';
       amountTextController.text = "${existingAmount}";
-      typeTextController.text = existingType ?? ''; // INCOME or EXPENSE
     }
-    String selectedType = 'INCOME'; // The variable to track the choice
+    String selectedType =
+        existingType ?? 'INCOME'; // The variable to track the choice
 
     // pop up the thingy
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(
-            docId == null ? "Create new Transaction" : "Edit Transaction",
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: "Title"),
-                controller: titleTextController,
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text(
+                docId == null ? "Create new Transaction" : "Edit Transaction",
               ),
-              const SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(labelText: "Content"),
-                controller: contentTextController,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(labelText: "Amount"),
-                controller: amountTextController,
-              ),
-              const SizedBox(height: 10),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    decoration: InputDecoration(labelText: "Title"),
+                    controller: titleTextController,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    decoration: InputDecoration(labelText: "Content"),
+                    controller: contentTextController,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    decoration: InputDecoration(labelText: "Amount"),
+                    controller: amountTextController,
+                  ),
+                  const SizedBox(height: 10),
 
-              DropdownButtonFormField<String>(
-                initialValue: selectedType,
-                decoration: InputDecoration(labelText: "Type"),
-                items: ['INCOME', 'EXPENSE'].map((String type) {
-                  return DropdownMenuItem<String>(
-                    value: type,
-                    child: Text(type),
-                  );
-                }).toList(),
-                onChanged: (newValue) {
-                  setState(() {
-                    selectedType =
-                        newValue!; // Update the UI when the user picks a new type
-                  });
-                },
-              ),
-            ],
-          ),
-          actions: [
-            MaterialButton(
-              onPressed: () async {
-                if (typeTextController.text != "INCOME" &&
-                    typeTextController.text != "EXPENSE") {
-                  showTimedPopup(
-                    context,
-                    "Invalid Type",
-                    "Type must either be INCOME or EXPENSE!",
-                  );
-                  return;
-                }
-                int amt = int.tryParse(amountTextController.text) ?? 0;
-                if (amt <= 0) {
-                  showTimedPopup(
-                    context,
-                    "Invalid Amount",
-                    "PLEASE put a valid AMOUNT!",
-                  );
-                  return;
-                }
-                if (docId == null) {
-                  duitService.addDuit(
-                    titleTextController.text,
-                    contentTextController.text,
-                    amt,
-                    typeTextController.text,
-                  );
-                  await NotificationService.createNotification(
-                    id: 4,
-                    title: 'Successfully created record',
-                    body: 'A record for your transaction has been created.',
-                    summary: 'Duitku',
-                  );
-                } else {
-                  duitService.updateDuit(
-                    docId,
-                    titleTextController.text,
-                    contentTextController.text,
-                    amt,
-                    typeTextController.text,
-                  );
-                  await NotificationService.createNotification(
-                    id: 2,
-                    title: 'Successfully edited record',
-                    body: 'The record in your transaction has been modified.',
-                    summary: 'Duitku',
-                  );
-                }
-                titleTextController.clear();
-                contentTextController.clear();
-                amountTextController.clear();
-                typeTextController.clear();
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedType,
+                    decoration: InputDecoration(labelText: "Type"),
+                    items: ['INCOME', 'EXPENSE'].map((String type) {
+                      return DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      setState(() {
+                        selectedType =
+                            newValue!; // Update the UI when the user picks a new type
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
 
-                Navigator.pop(context);
-              },
-              child: Text(docId == null ? "Create" : "Update"),
-            ),
-          ],
+                  // button here
+                  MaterialButton(
+                    onPressed: () async {
+                      final XFile? pickedFile = await _picker.pickImage(
+                        source: ImageSource.gallery,
+                      );
+
+                      if (pickedFile != null) {
+                        setStateDialog(() {
+                          _selectedImage = File(pickedFile.path);
+                        });
+                      }
+                    },
+                    child: Text("Pick Image"),
+                  ),
+
+                  const SizedBox(height: 10),
+                  if (_selectedImage != null)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Image.file(_selectedImage!, height: 100),
+                    ),
+                ],
+              ),
+              actions: [
+                MaterialButton(
+                  onPressed: () async {
+                    if (selectedType != "INCOME" && selectedType != "EXPENSE") {
+                      String hhhh = selectedType == '' ? 'NULL' : selectedType;
+                      showTimedPopup(
+                        context,
+                        "Invalid Type of (${hhhh})",
+                        "Type must either be INCOME or EXPENSE!",
+                      );
+                      return;
+                    }
+                    int amt = int.tryParse(amountTextController.text) ?? 0;
+                    if (amt <= 0) {
+                      showTimedPopup(
+                        context,
+                        "Invalid Amount",
+                        "PLEASE put a valid AMOUNT!",
+                      );
+                      return;
+                    }
+                    if (docId == null) {
+                      String? imageUrl;
+
+                      if (_selectedImage != null) {
+                        imageUrl = await ioservice.uploadImage(_selectedImage!);
+                      }
+                      duitService.addDuit(
+                        titleTextController.text,
+                        contentTextController.text,
+                        amt,
+                        selectedType,
+                        imageUrl ?? '',
+                      );
+                      await NotificationService.createNotification(
+                        id: 4,
+                        title: 'Successfully created record',
+                        body: 'A record for your transaction has been created.',
+                        summary: 'Duitku',
+                      );
+                    } else {
+                      duitService.updateDuit(
+                        docId,
+                        titleTextController.text,
+                        contentTextController.text,
+                        amt,
+                        selectedType,
+                        existingURL ?? '',
+                      );
+                      await NotificationService.createNotification(
+                        id: 2,
+                        title: 'Successfully edited record',
+                        body:
+                            'The record in your transaction has been modified.',
+                        summary: 'Duitku',
+                      );
+                    }
+                    titleTextController.clear();
+                    contentTextController.clear();
+                    amountTextController.clear();
+                    typeTextController.clear();
+                    setState(() {
+                      _selectedImage = null;
+                    });
+
+                    Navigator.pop(context);
+                  },
+                  child: Text(docId == null ? "Create" : "Update"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -330,8 +308,17 @@ class _HomePageState extends State<HomePage> {
                       String noteContent = data['content'];
                       int noteAmount = data['amount'];
                       String noteType = data['type'];
+                      String imgUrl = data['imgUrl'] ?? '';
 
+                      // RENDER IMAGE HERE
                       return ListTile(
+                        leading: imgUrl.isNotEmpty
+                            ? SizedBox(
+                                width: 50,
+                                height: 50,
+                                child: Image.network(imgUrl, fit: BoxFit.cover),
+                              )
+                            : const Icon(Icons.money),
                         title: Text(noteTitle),
                         subtitle: Text(noteContent),
                         trailing: Row(
@@ -348,6 +335,7 @@ class _HomePageState extends State<HomePage> {
                                   existingTitle: noteTitle,
                                   existingAmount: noteAmount,
                                   existingType: noteType,
+                                  existingURL: imgUrl,
                                 );
                               },
                             ),
